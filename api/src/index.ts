@@ -16,6 +16,15 @@ import { SaleOfferHandler } from "./workers/sale-offer-handler";
 
 const argv = yargs(hideBin(process.argv)).argv;
 
+if (process.env.NODE_ENV !== "production") {
+  const env = require("dotenv");
+  const expandEnv = require("dotenv-expand");
+  env.config({
+    path: "./.env.local",
+  });
+  expandEnv(env);
+}
+
 async function run() {
   const config = getConfig();
   const db = initDB(config);
@@ -49,6 +58,7 @@ async function run() {
   fcl.config().put("accessNode.api", config.accessApi);
 
   const startWorker = () => {
+    console.log("Starting Flow event worker ....");
     const blockCursorService = new BlockCursorService();
 
     const saleOfferWorker = new SaleOfferHandler(
@@ -59,8 +69,10 @@ async function run() {
 
     saleOfferWorker.run();
   };
-  
+
   const startAPIServer = () => {
+    console.log("Starting API server ....");
+
     const kibblesService = new KibblesService(
       flowService,
       config.fungibleTokenAddress,
@@ -85,20 +97,19 @@ async function run() {
     startWorker();
     startAPIServer();
     return;
-  } else {
+  } else if (argv.worker) {
     // If we're not in dev, look for flags. We do this so that
     // the worker can be started in seperate process using flag.
     // eg:
     // $> node /api/dist/index.js (starts API server)
     // $> node /api/dist/index.js --worker (starts worker)
-    if (argv.worker) {
-      // Start the worker only if worker is passed as as command flag.
-      // See above notes for why.
-      startWorker();
-    } else {
-      // Default when not in dev: start the API server.
-      startAPIServer();
-    }
+
+    // Start the worker only if worker is passed as command flag.
+    // See above notes for why.
+    startWorker();
+  } else {
+    // Default when not in dev: start the API server.
+    startAPIServer();
   }
 }
 
